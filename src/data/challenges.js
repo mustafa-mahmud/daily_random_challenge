@@ -1,28 +1,24 @@
-// সব চ্যালেঞ্জের তালিকা
-export const CHALLENGES = [
-  'Drink 2 glasses of water',
-  'Walk 1000 steps',
-  'Read 10 pages',
-  'Stretch for 5 minutes',
-  'Meditate for 3 minutes',
-  'Call your parents',
-  'No soft drinks today',
-  'Sleep before 11 PM',
-  'Write 5 positive thoughts',
-  'Eat one fruit',
+export const challenges = [
+  'Drink 2 liters of water today',
+  'Walk 5,000 steps',
+  'Read 10 pages of a book',
+  'Do 15 minutes of stretching',
+  'No sugar for the whole day',
+  'Meditate for 10 minutes',
+  'Write down 3 things you are grateful for',
+  'Sleep for at least 7-8 hours tonight',
+  'Learn 5 new English words',
+  'Avoid social media for 2 hours',
 ];
 
-// প্রতিদিন একই চ্যালেঞ্জ পাওয়ার বিশেষ গাণিতিক লজিক
 export const getTodayChallenge = () => {
-  const today = new Date().toDateString(); // যেমন: "Sun Jul 26 2026"
-
-  // তারিখকে একটি ইউনিক সংখ্যার হ্যাশে রূপান্তর
-  let hash = 0;
-  for (let i = 0; i < today.length; i++) {
-    hash = today.charCodeAt(i) + ((hash << 5) - hash);
-  }
-
-  // হ্যাশ সংখ্যা থেকে লিস্টের সঠিক ইনডেক্স খুঁজে বের করা
-  const index = Math.abs(hash) % CHALLENGES.length;
-  return CHALLENGES[index];
+  const today = new Date();
+  const dayOfYear = Math.floor(
+    (today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) /
+      1000 /
+      60 /
+      60 /
+      24,
+  );
+  return challenges[dayOfYear % challenges.length];
 };

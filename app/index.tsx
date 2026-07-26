@@ -14,22 +14,34 @@ import {
   View,
 } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
-import { getTodayChallenge } from '../src/data/challenges';
+import {
+  getTodayChallenge,
+  challenges as importedChallenges,
+} from '../src/data/challenges';
 
 // Local Animations Import
 import happyAnim from '../assets/animations/happy.json';
 import plantAnim from '../assets/animations/plant.json';
 import sadAnim from '../assets/animations/sad.json';
 
+// Safety Fallback (ইমপোর্ট ফেইল করলেও অ্যাপ ক্র্যাশ করবে না)
+const challengesList = importedChallenges || [
+  'Drink 2 liters of water today',
+  'Walk 5,000 steps',
+  'Read 10 pages of a book',
+  'Do 15 minutes of stretching',
+  'No sugar for the whole day',
+];
+
 export default function App() {
   const [todayChallenge, setTodayChallenge] = useState('');
   const [status, setStatus] = useState('pending');
   const [treeLevel, setTreeLevel] = useState(1);
-  const [streak, setStreak] = useState(0); // 🔥 Streak State
+  const [streak, setStreak] = useState(0);
+  const [shuffleLeft, setShuffleLeft] = useState(5);
   const [loading, setLoading] = useState(true);
   const confettiRef = useRef<any>(null);
 
-  // Animated Value for Screen Shake
   const shakeAnimation = useRef(new Animated.Value(0)).current;
 
   const getTodayKey = () => {
@@ -43,11 +55,23 @@ export default function App() {
     return `status_${yesterday.toISOString().split('T')[0]}`;
   };
 
+  const getShuffleKey = () => {
+    const today = new Date().toISOString().split('T')[0];
+    return `shuffle_${today}`;
+  };
+
+  const getCustomChallengeKey = () => {
+    const today = new Date().toISOString().split('T')[0];
+    return `challenge_${today}`;
+  };
+
   const handleReset = async () => {
     await AsyncStorage.clear();
     setStatus('pending');
     setTreeLevel(1);
     setStreak(0);
+    setShuffleLeft(5);
+    setTodayChallenge(getTodayChallenge());
   };
 
   useEffect(() => {
@@ -56,17 +80,30 @@ export default function App() {
 
   const loadData = async () => {
     try {
-      const challenge = getTodayChallenge();
-      setTodayChallenge(challenge);
-
       const savedStatus = await AsyncStorage.getItem(getTodayKey());
       const savedLevel = await AsyncStorage.getItem('tree_level');
       const savedStreak = await AsyncStorage.getItem('streak_count');
+      const savedShuffle = await AsyncStorage.getItem(getShuffleKey());
+      const savedCustomChallenge = await AsyncStorage.getItem(
+        getCustomChallengeKey(),
+      );
+
       const yesterdayStatus = await AsyncStorage.getItem(getYesterdayKey());
+
+      if (savedCustomChallenge) {
+        setTodayChallenge(savedCustomChallenge);
+      } else {
+        setTodayChallenge(getTodayChallenge());
+      }
+
+      if (savedShuffle !== null) {
+        setShuffleLeft(parseInt(savedShuffle, 10));
+      } else {
+        setShuffleLeft(5);
+      }
 
       let currentStreak = savedStreak ? parseInt(savedStreak, 10) : 0;
 
-      // যদি গতকাল সম্পন্ন না হয়ে থাকে এবং আজকেও প্যান্ডিং থাকে, তবে স্ট্রিক রিসেট হবে
       if (yesterdayStatus !== 'completed' && savedStatus !== 'completed') {
         currentStreak = 0;
         await AsyncStorage.setItem('streak_count', '0');
@@ -80,6 +117,30 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // 🎲 নতুন চ্যালেঞ্জ শাফেল করার সেফ লজিক
+  const handleShuffle = async () => {
+    if (shuffleLeft <= 0 || status !== 'pending') return;
+
+    // challengesList নিশ্চিত করে নিরাপদ filter করা হচ্ছে
+    const availableChallenges = challengesList.filter(
+      (c) => c !== todayChallenge,
+    );
+    if (availableChallenges.length === 0) return;
+
+    const randomIndex = Math.floor(Math.random() * availableChallenges.length);
+    const newChallenge = availableChallenges[randomIndex];
+
+    const updatedShuffleCount = shuffleLeft - 1;
+
+    setTodayChallenge(newChallenge);
+    setShuffleLeft(updatedShuffleCount);
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    await AsyncStorage.setItem(getCustomChallengeKey(), newChallenge);
+    await AsyncStorage.setItem(getShuffleKey(), updatedShuffleCount.toString());
   };
 
   const triggerShake = () => {
@@ -146,7 +207,7 @@ export default function App() {
       }, 500);
 
       const newLevel = treeLevel + 1;
-      const newStreak = streak + 1; // Streak ১ বাড়ানো হচ্ছে
+      const newStreak = streak + 1;
 
       setStatus('completed');
       setTreeLevel(newLevel);
@@ -169,7 +230,6 @@ export default function App() {
         triggerShake();
       }, 500);
 
-      // ফেইল করলে স্ট্রিক ভেঙে ০ হয়ে যাবে
       setStreak(0);
       setStatus('failed');
 
@@ -200,7 +260,7 @@ export default function App() {
           alignItems: 'center',
         }}
       >
-        {/* Header with Streak & Level */}
+        {/* Header */}
         <View className="items-center mt-2">
           <Text className="text-2xl font-bold color-slate-800">
             🌱 Daily Challenge
@@ -219,10 +279,27 @@ export default function App() {
 
         {/* Challenge Card */}
         <View className="bg-white w-full p-6 rounded-2xl items-center shadow-md shadow-slate-200 elevation-3">
-          <Text className="text-xs font-black color-slate-400 tracking-widest mb-2">
-            TODAY'S TASK
-          </Text>
-          <Text className="text-xl font-semibold color-slate-800 text-center">
+          <View className="flex-row justify-between items-center w-full mb-3">
+            <Text className="text-xs font-black color-slate-400 tracking-widest">
+              TODAY'S TASK
+            </Text>
+
+            {status === 'pending' && (
+              <TouchableOpacity
+                onPress={handleShuffle}
+                disabled={shuffleLeft === 0}
+                className={`px-3 py-1 rounded-full flex-row items-center gap-1 ${
+                  shuffleLeft > 0 ? 'bg-amber-100' : 'bg-slate-100'
+                }`}
+              >
+                <Text className="text-xs font-bold color-amber-700">
+                  🎲 Shuffle ({shuffleLeft})
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <Text className="text-xl font-semibold color-slate-800 text-center my-2">
             {todayChallenge}
           </Text>
         </View>
