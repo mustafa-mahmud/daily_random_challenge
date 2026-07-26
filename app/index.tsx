@@ -25,6 +25,7 @@ export default function App() {
   const [todayChallenge, setTodayChallenge] = useState('');
   const [status, setStatus] = useState('pending');
   const [treeLevel, setTreeLevel] = useState(1);
+  const [streak, setStreak] = useState(0); // 🔥 Streak State
   const [loading, setLoading] = useState(true);
   const confettiRef = useRef<any>(null);
 
@@ -36,10 +37,17 @@ export default function App() {
     return `status_${today}`;
   };
 
+  const getYesterdayKey = () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return `status_${yesterday.toISOString().split('T')[0]}`;
+  };
+
   const handleReset = async () => {
     await AsyncStorage.clear();
     setStatus('pending');
     setTreeLevel(1);
+    setStreak(0);
   };
 
   useEffect(() => {
@@ -53,7 +61,18 @@ export default function App() {
 
       const savedStatus = await AsyncStorage.getItem(getTodayKey());
       const savedLevel = await AsyncStorage.getItem('tree_level');
+      const savedStreak = await AsyncStorage.getItem('streak_count');
+      const yesterdayStatus = await AsyncStorage.getItem(getYesterdayKey());
 
+      let currentStreak = savedStreak ? parseInt(savedStreak, 10) : 0;
+
+      // যদি গতকাল সম্পন্ন না হয়ে থাকে এবং আজকেও প্যান্ডিং থাকে, তবে স্ট্রিক রিসেট হবে
+      if (yesterdayStatus !== 'completed' && savedStatus !== 'completed') {
+        currentStreak = 0;
+        await AsyncStorage.setItem('streak_count', '0');
+      }
+
+      setStreak(currentStreak);
       if (savedStatus) setStatus(savedStatus);
       if (savedLevel) setTreeLevel(parseInt(savedLevel, 10));
     } catch (error) {
@@ -63,10 +82,8 @@ export default function App() {
     }
   };
 
-  // দ্রুত এবং স্পষ্টভাবে ৪ বার শেক হওয়ার লজিক
   const triggerShake = () => {
     Animated.sequence([
-      // Cycle 1
       Animated.timing(shakeAnimation, {
         toValue: 20,
         duration: 30,
@@ -77,7 +94,6 @@ export default function App() {
         duration: 30,
         useNativeDriver: true,
       }),
-      // Cycle 2
       Animated.timing(shakeAnimation, {
         toValue: 18,
         duration: 30,
@@ -88,7 +104,6 @@ export default function App() {
         duration: 30,
         useNativeDriver: true,
       }),
-      // Cycle 3
       Animated.timing(shakeAnimation, {
         toValue: 12,
         duration: 30,
@@ -99,7 +114,6 @@ export default function App() {
         duration: 30,
         useNativeDriver: true,
       }),
-      // Cycle 4
       Animated.timing(shakeAnimation, {
         toValue: 6,
         duration: 30,
@@ -110,7 +124,6 @@ export default function App() {
         duration: 30,
         useNativeDriver: true,
       }),
-      // Reset to Original
       Animated.timing(shakeAnimation, {
         toValue: 0,
         duration: 30,
@@ -121,26 +134,27 @@ export default function App() {
 
   const handleComplete = async () => {
     try {
-      // ১. Haptic & Vibration সাথে সাথে হবে
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       Vibration.vibrate(300);
 
-      // ২. কনফেটি ফায়ার
       if (confettiRef.current) {
         confettiRef.current.start();
       }
 
-      // ৩. ঠিক ৫০০ মিলিসেকেন্ড (০.৫ সেকেন্ড) পর শেক অ্যানিমেশন শুরু হবে
       setTimeout(() => {
         triggerShake();
       }, 500);
 
       const newLevel = treeLevel + 1;
+      const newStreak = streak + 1; // Streak ১ বাড়ানো হচ্ছে
+
       setStatus('completed');
       setTreeLevel(newLevel);
+      setStreak(newStreak);
 
       await AsyncStorage.setItem(getTodayKey(), 'completed');
       await AsyncStorage.setItem('tree_level', newLevel.toString());
+      await AsyncStorage.setItem('streak_count', newStreak.toString());
     } catch (error) {
       console.error('Error saving complete status:', error);
     }
@@ -151,13 +165,16 @@ export default function App() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Vibration.vibrate([0, 150, 100, 150]);
 
-      // ৫০০ মিলিসেকেন্ড পর শেক অ্যানিমেশন
       setTimeout(() => {
         triggerShake();
       }, 500);
 
+      // ফেইল করলে স্ট্রিক ভেঙে ০ হয়ে যাবে
+      setStreak(0);
       setStatus('failed');
+
       await AsyncStorage.setItem(getTodayKey(), 'failed');
+      await AsyncStorage.setItem('streak_count', '0');
     } catch (error) {
       console.error('Error saving fail status:', error);
     }
@@ -175,7 +192,6 @@ export default function App() {
     <SafeAreaView className="flex-1 bg-slate-50 justify-between py-12 px-5">
       <StatusBar barStyle="dark-content" />
 
-      {/* Animated.View দিয়ে পুরো কনটেন্টকে Wrap করা হয়েছে যেন ঝাকুনি দেয় */}
       <Animated.View
         style={{
           transform: [{ translateX: shakeAnimation }],
@@ -184,14 +200,19 @@ export default function App() {
           alignItems: 'center',
         }}
       >
-        {/* Header */}
+        {/* Header with Streak & Level */}
         <View className="items-center mt-2">
           <Text className="text-2xl font-bold color-slate-800">
             🌱 Daily Challenge
           </Text>
-          <Text className="text-xs font-semibold color-emerald-600 mt-1">
-            Tree Level: {treeLevel}
-          </Text>
+          <View className="flex-row items-center gap-3 mt-1">
+            <Text className="text-xs font-semibold color-emerald-600">
+              Tree Level: {treeLevel}
+            </Text>
+            <Text className="text-xs font-bold color-orange-500">
+              🔥 Streak: {streak} {streak === 1 ? 'day' : 'days'}
+            </Text>
+          </View>
         </View>
 
         <Button onPress={handleReset} title="Reset" />
