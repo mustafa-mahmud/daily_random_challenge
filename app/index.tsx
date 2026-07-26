@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 import LottieView from 'lottie-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Button,
@@ -10,23 +11,30 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import ConfettiCannon from 'react-native-confetti-cannon';
 import { getTodayChallenge } from '../src/data/challenges';
+
+// Local Animations Import
+import happyAnim from '../assets/animations/happy.json';
+import plantAnim from '../assets/animations/plant.json';
+import sadAnim from '../assets/animations/sad.json';
 
 export default function App() {
   const [todayChallenge, setTodayChallenge] = useState('');
-  const [status, setStatus] = useState('pending'); // 'pending', 'completed', 'failed'
+  const [status, setStatus] = useState('pending');
   const [treeLevel, setTreeLevel] = useState(1);
   const [loading, setLoading] = useState(true);
+  const confettiRef = useRef<any>(null);
+
+  const getTodayKey = () => {
+    const today = new Date().toISOString().split('T')[0];
+    return `status_${today}`;
+  };
 
   const handleReset = async () => {
     await AsyncStorage.clear();
     setStatus('pending');
     setTreeLevel(1);
-  };
-
-  const getTodayKey = () => {
-    const today = new Date().toISOString().split('T')[0];
-    return `status_${today}`;
   };
 
   useEffect(() => {
@@ -50,8 +58,17 @@ export default function App() {
     }
   };
 
+  // Complete বাটনে চাপ দিলে Haptic + Confetti রান হবে
   const handleComplete = async () => {
     try {
+      // ১. ভাইব্রেশন / Haptic Effect
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      // ২. কনফেটি ফায়ার
+      if (confettiRef.current) {
+        confettiRef.current.start();
+      }
+
       const newLevel = treeLevel + 1;
       setStatus('completed');
       setTreeLevel(newLevel);
@@ -63,8 +80,11 @@ export default function App() {
     }
   };
 
+  // Failed বাটনে চাপ দিলে হালকা Error Haptic ভাইব্রেশন হবে
   const handleFail = async () => {
     try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+
       setStatus('failed');
       await AsyncStorage.setItem(getTodayKey(), 'failed');
     } catch (error) {
@@ -106,11 +126,11 @@ export default function App() {
         </Text>
       </View>
 
-      {/* Animation Display Area */}
+      {/* Animation Area */}
       <View className="items-center justify-center my-4 h-64 w-64">
         {status === 'pending' && (
           <LottieView
-            source={require('../assets/animations/tree.json')} // লোকাল ফাইল
+            source={plantAnim}
             autoPlay
             loop
             style={{ width: '100%', height: '100%' }}
@@ -120,7 +140,7 @@ export default function App() {
         {status === 'completed' && (
           <View className="items-center">
             <LottieView
-              source={require('../assets/animations/happy.json')} // লোকাল ফাইল
+              source={happyAnim}
               autoPlay
               loop={false}
               style={{ width: 200, height: 200 }}
@@ -134,7 +154,7 @@ export default function App() {
         {status === 'failed' && (
           <View className="items-center">
             <LottieView
-              source={require('../assets/animations/sad.json')} // লোকাল ফাইল
+              source={sadAnim}
               autoPlay
               loop
               style={{ width: 180, height: 180 }}
@@ -170,6 +190,15 @@ export default function App() {
           </Text>
         </View>
       )}
+
+      {/* Confetti Cannon Component */}
+      <ConfettiCannon
+        ref={confettiRef}
+        count={150}
+        origin={{ x: -10, y: 0 }}
+        autoStart={false}
+        fadeOut={true}
+      />
     </SafeAreaView>
   );
 }
