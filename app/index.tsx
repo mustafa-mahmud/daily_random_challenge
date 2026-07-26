@@ -18,13 +18,16 @@ import {
   getTodayChallenge,
   challenges as importedChallenges,
 } from '../src/data/challenges';
+import {
+  registerForPushNotificationsAsync,
+  scheduleDailyNotification,
+} from '../src/services/notifications';
 
 // Local Animations Import
 import happyAnim from '../assets/animations/happy.json';
 import plantAnim from '../assets/animations/plant.json';
 import sadAnim from '../assets/animations/sad.json';
 
-// Safety Fallback (ইমপোর্ট ফেইল করলেও অ্যাপ ক্র্যাশ করবে না)
 const challengesList = importedChallenges || [
   'Drink 2 liters of water today',
   'Walk 5,000 steps',
@@ -76,7 +79,18 @@ export default function App() {
 
   useEffect(() => {
     loadData();
+    // 🔔 নোটিফিকেশন পারমিশন ও ডেলি রিমাইন্ডার সেটআপ
+    initNotifications();
   }, []);
+
+  const initNotifications = async () => {
+    try {
+      await registerForPushNotificationsAsync();
+      await scheduleDailyNotification();
+    } catch (error) {
+      console.log('Notification initialization error:', error);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -119,11 +133,9 @@ export default function App() {
     }
   };
 
-  // 🎲 নতুন চ্যালেঞ্জ শাফেল করার সেফ লজিক
   const handleShuffle = async () => {
     if (shuffleLeft <= 0 || status !== 'pending') return;
 
-    // challengesList নিশ্চিত করে নিরাপদ filter করা হচ্ছে
     const availableChallenges = challengesList.filter(
       (c) => c !== todayChallenge,
     );
