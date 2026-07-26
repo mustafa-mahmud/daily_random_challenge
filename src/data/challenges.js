@@ -9,6 +9,8 @@ export const challenges = [
   'Sleep for at least 7-8 hours tonight',
   'Learn 5 new English words',
   'Avoid social media for 2 hours',
+  'No Junk food for a day',
+  'No Cigarette for a day',
 ];
 
 export const getTodayChallenge = () => {

@@ -14,6 +14,7 @@ import {
   Vibration,
   View,
 } from 'react-native';
+import { Calendar } from 'react-native-calendars';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import {
   getTodayChallenge,
@@ -29,7 +30,6 @@ import happyAnim from '../assets/animations/happy.json';
 import plantAnim from '../assets/animations/plant.json';
 import sadAnim from '../assets/animations/sad.json';
 
-// 🏅 Badges Data Definition
 interface Badge {
   id: string;
   title: string;
@@ -87,19 +87,38 @@ export default function App() {
   const [earnedBadgeModal, setEarnedBadgeModal] = useState<Badge | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // 📅 Calendar & History States
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [markedDates, setMarkedDates] = useState<any>({});
+
   const confettiRef = useRef<any>(null);
   const shakeAnimation = useRef(new Animated.Value(0)).current;
 
-  const getTodayKey = () => `status_${new Date().toISOString().split('T')[0]}`;
+  // 📅 Local Timezone অনুযায়ী আজকের তারিখ পাওয়ার হেলপার ফাংশন
+  const getFormattedDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // 🗓️ বাটনে সুন্দর করে আজকের তারিখ দেখানোর ফাংশন (যেমন: Jul 26)
+  const getHeaderDateString = () => {
+    return new Date().toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const getTodayKey = () => `status_${getFormattedDate(new Date())}`;
   const getYesterdayKey = () => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    return `status_${yesterday.toISOString().split('T')[0]}`;
+    return `status_${getFormattedDate(yesterday)}`;
   };
-  const getShuffleKey = () =>
-    `shuffle_${new Date().toISOString().split('T')[0]}`;
+  const getShuffleKey = () => `shuffle_${getFormattedDate(new Date())}`;
   const getCustomChallengeKey = () =>
-    `challenge_${new Date().toISOString().split('T')[0]}`;
+    `challenge_${getFormattedDate(new Date())}`;
 
   const handleReset = async () => {
     await AsyncStorage.clear();
@@ -108,6 +127,7 @@ export default function App() {
     setStreak(0);
     setShuffleLeft(5);
     setUnlockedBadges([]);
+    setMarkedDates({});
     setTodayChallenge(getTodayChallenge());
   };
 
@@ -156,10 +176,45 @@ export default function App() {
       if (savedStatus) setStatus(savedStatus);
       if (savedLevel) setTreeLevel(parseInt(savedLevel, 10));
       if (savedBadges) setUnlockedBadges(JSON.parse(savedBadges));
+
+      // 📅 ক্যালেন্ডার হিস্ট্রি লোড
+      await fetchHistoryData();
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 📅 AsyncStorage থেকে আগের স্ট্যাটাস নিয়ে ক্যালেন্ডারে ফরম্যাট করা
+  const fetchHistoryData = async () => {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const statusKeys = keys.filter((key) => key.startsWith('status_'));
+      const keyValues = await AsyncStorage.multiGet(statusKeys);
+
+      const newMarkedDates: any = {};
+
+      keyValues.forEach(([key, val]) => {
+        const dateStr = key.replace('status_', '');
+        if (val === 'completed') {
+          newMarkedDates[dateStr] = {
+            selected: true,
+            selectedColor: '#10B981', // 🟢 Completed Green
+            textColor: '#FFFFFF',
+          };
+        } else if (val === 'failed') {
+          newMarkedDates[dateStr] = {
+            selected: true,
+            selectedColor: '#EF4444', // 🔴 Failed Red
+            textColor: '#FFFFFF',
+          };
+        }
+      });
+
+      setMarkedDates(newMarkedDates);
+    } catch (error) {
+      console.error('Error fetching history:', error);
     }
   };
 
@@ -237,10 +292,7 @@ export default function App() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       Vibration.vibrate(300);
 
-      if (confettiRef.current) {
-        confettiRef.current.start();
-      }
-
+      if (confettiRef.current) confettiRef.current.start();
       setTimeout(() => triggerShake(), 500);
 
       const newLevel = treeLevel + 1;
@@ -254,7 +306,10 @@ export default function App() {
       await AsyncStorage.setItem('tree_level', newLevel.toString());
       await AsyncStorage.setItem('streak_count', newStreak.toString());
 
-      // 🏅 ব্যাজ আনলক করার লজিক চেক
+      // 📅 ক্যালেন্ডার হিস্ট্রি আপডেট
+      await fetchHistoryData();
+
+      // 🏅 ব্যাজ আনলক লজিক
       const newlyEarnedBadge = BADGES.find((b) => b.days === newStreak);
       if (newlyEarnedBadge && !unlockedBadges.includes(newlyEarnedBadge.id)) {
         const updatedBadgesList = [...unlockedBadges, newlyEarnedBadge.id];
@@ -264,10 +319,7 @@ export default function App() {
           JSON.stringify(updatedBadgesList),
         );
 
-        // পপআপ মোডাল দেখানো
-        setTimeout(() => {
-          setEarnedBadgeModal(newlyEarnedBadge);
-        }, 1000);
+        setTimeout(() => setEarnedBadgeModal(newlyEarnedBadge), 1000);
       }
     } catch (error) {
       console.error('Error saving complete status:', error);
@@ -286,6 +338,9 @@ export default function App() {
 
       await AsyncStorage.setItem(getTodayKey(), 'failed');
       await AsyncStorage.setItem('streak_count', '0');
+
+      // 📅 ক্যালেন্ডার হিস্ট্রি আপডেট
+      await fetchHistoryData();
     } catch (error) {
       console.error('Error saving fail status:', error);
     }
@@ -298,6 +353,8 @@ export default function App() {
       </SafeAreaView>
     );
   }
+
+  const todayStr = getFormattedDate(new Date());
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 justify-between py-10 px-5">
@@ -313,9 +370,22 @@ export default function App() {
       >
         {/* Header Area */}
         <View className="items-center mt-2 w-full">
-          <Text className="text-2xl font-bold color-slate-800">
-            🌱 Daily Challenge
-          </Text>
+          <View className="flex-row justify-between items-center w-full px-2">
+            <Text className="text-xl font-bold color-slate-800">
+              🌱 Daily Challenge
+            </Text>
+
+            {/* 🗓️ Dynamic Date History Button */}
+            <TouchableOpacity
+              onPress={() => setShowHistoryModal(true)}
+              className="bg-emerald-100 px-3 py-1.5 rounded-full flex-row items-center gap-1"
+            >
+              <Text className="text-xs font-bold color-emerald-700">
+                🗓️ {getHeaderDateString()} | History
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <View className="flex-row items-center gap-3 mt-1">
             <Text className="text-xs font-semibold color-emerald-600">
               Tree Level: {treeLevel}
@@ -330,7 +400,7 @@ export default function App() {
             {BADGES.map((b) => {
               const isUnlocked = unlockedBadges.includes(b.id);
               return (
-                <View key={b.id} className="items-center opacity-100">
+                <View key={b.id} className="items-center">
                   <View
                     className={`w-10 h-10 rounded-full items-center justify-center ${
                       isUnlocked ? 'bg-amber-100' : 'bg-slate-100'
@@ -397,7 +467,7 @@ export default function App() {
                 loop={false}
                 style={{ width: 180, height: 180 }}
               />
-              <Text className="text-lg color-emerald-600 font-bold my-1 text-center">
+              <Text className="text-lg color-emerald-600 font-bold mt-1">
                 Great job! Tree Grew Up! 🌳
               </Text>
             </View>
@@ -443,6 +513,64 @@ export default function App() {
           </View>
         )}
       </Animated.View>
+
+      {/* 📅 Calendar History Modal */}
+      <Modal visible={showHistoryModal} transparent animationType="slide">
+        <View className="flex-1 justify-center items-center bg-black/60 px-5">
+          <View className="bg-white rounded-3xl p-5 w-full max-w-md">
+            <Text className="text-xl font-bold color-slate-800 text-center mb-4">
+              📅 Challenge History
+            </Text>
+
+            <Calendar
+              key={todayStr}
+              current={todayStr}
+              markedDates={{
+                ...markedDates,
+                ...(markedDates[todayStr]
+                  ? {}
+                  : {
+                      [todayStr]: {
+                        today: true,
+                        selected: true,
+                        selectedColor: '#E2E8F0',
+                        textColor: '#0F172A',
+                      },
+                    }),
+              }}
+              theme={{
+                todayTextColor: '#10B981',
+                arrowColor: '#10B981',
+                indicatorColor: '#10B981',
+                selectedDayBackgroundColor: '#10B981',
+              }}
+            />
+
+            {/* Indicator Legend */}
+            <View className="flex-row justify-center gap-6 mt-4">
+              <View className="flex-row items-center gap-2">
+                <View className="w-3 h-3 rounded-full bg-emerald-500" />
+                <Text className="text-xs color-slate-600 font-semibold">
+                  Completed
+                </Text>
+              </View>
+              <View className="flex-row items-center gap-2">
+                <View className="w-3 h-3 rounded-full bg-rose-500" />
+                <Text className="text-xs color-slate-600 font-semibold">
+                  Failed
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              onPress={() => setShowHistoryModal(false)}
+              className="bg-slate-800 py-3 rounded-xl items-center mt-5"
+            >
+              <Text className="color-white font-bold text-base">Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* 🏅 Badge Unlock Celebration Modal */}
       <Modal
