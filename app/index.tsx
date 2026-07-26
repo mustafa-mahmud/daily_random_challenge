@@ -7,7 +7,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
-  Button,
   Modal,
   SafeAreaView,
   StatusBar,
@@ -153,18 +152,6 @@ export default function App() {
   const getShuffleKey = () => `shuffle_${getFormattedDate(new Date())}`;
   const getCustomChallengeKey = () =>
     `challenge_${getFormattedDate(new Date())}`;
-
-  const handleReset = async () => {
-    await AsyncStorage.clear();
-    setStatus('pending');
-    setTreeLevel(1);
-    setStreak(0);
-    setShuffleLeft(5);
-    setUnlockedBadges([]);
-    setMarkedDates({});
-    setIsDarkMode(false);
-    setTodayChallenge(getTodayChallenge());
-  };
 
   useEffect(() => {
     loadData();
@@ -547,8 +534,6 @@ export default function App() {
           </View>
         </View>
 
-        <Button onPress={handleReset} title="Reset Progress" color="#EF4444" />
-
         {/* 📸 Challenge Card (Capturable for Sharing) */}
         <View
           ref={cardRef}
@@ -648,8 +633,8 @@ export default function App() {
                 style={{ width: 180, height: 180 }}
               />
               <Text
-                className={`text-lg font-bold mt-1 ${
-                  isDarkMode ? 'color-emerald-400' : 'color-emerald-600'
+                className={`text-center text-lg font-bold mt-1 ${
+                  isDarkMode ? 'color-emerald-400' : 'color-emerald-600 '
                 }`}
               >
                 Great job! Tree Grew Up! 🌳
