@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Animated,
   Button,
+  Modal,
   SafeAreaView,
   StatusBar,
   Text,
@@ -28,6 +29,46 @@ import happyAnim from '../assets/animations/happy.json';
 import plantAnim from '../assets/animations/plant.json';
 import sadAnim from '../assets/animations/sad.json';
 
+// 🏅 Badges Data Definition
+interface Badge {
+  id: string;
+  title: string;
+  days: number;
+  icon: string;
+  desc: string;
+}
+
+const BADGES: Badge[] = [
+  {
+    id: '3_days',
+    title: 'Sprout',
+    days: 3,
+    icon: '🌱',
+    desc: '৩ দিন টানা চ্যালেঞ্জ সম্পন্ন',
+  },
+  {
+    id: '7_days',
+    title: 'Warrior',
+    days: 7,
+    icon: '🔥',
+    desc: '৭ দিন টানা চ্যালেঞ্জ সম্পন্ন',
+  },
+  {
+    id: '15_days',
+    title: 'Guardian',
+    days: 15,
+    icon: '🌳',
+    desc: '১৫ দিন টানা চ্যালেঞ্জ সম্পন্ন',
+  },
+  {
+    id: '30_days',
+    title: 'Champion',
+    days: 30,
+    icon: '🏆',
+    desc: '৩০ দিন টানা চ্যালেঞ্জ সম্পন্ন',
+  },
+];
+
 const challengesList = importedChallenges || [
   'Drink 2 liters of water today',
   'Walk 5,000 steps',
@@ -42,31 +83,23 @@ export default function App() {
   const [treeLevel, setTreeLevel] = useState(1);
   const [streak, setStreak] = useState(0);
   const [shuffleLeft, setShuffleLeft] = useState(5);
+  const [unlockedBadges, setUnlockedBadges] = useState<string[]>([]);
+  const [earnedBadgeModal, setEarnedBadgeModal] = useState<Badge | null>(null);
   const [loading, setLoading] = useState(true);
-  const confettiRef = useRef<any>(null);
 
+  const confettiRef = useRef<any>(null);
   const shakeAnimation = useRef(new Animated.Value(0)).current;
 
-  const getTodayKey = () => {
-    const today = new Date().toISOString().split('T')[0];
-    return `status_${today}`;
-  };
-
+  const getTodayKey = () => `status_${new Date().toISOString().split('T')[0]}`;
   const getYesterdayKey = () => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     return `status_${yesterday.toISOString().split('T')[0]}`;
   };
-
-  const getShuffleKey = () => {
-    const today = new Date().toISOString().split('T')[0];
-    return `shuffle_${today}`;
-  };
-
-  const getCustomChallengeKey = () => {
-    const today = new Date().toISOString().split('T')[0];
-    return `challenge_${today}`;
-  };
+  const getShuffleKey = () =>
+    `shuffle_${new Date().toISOString().split('T')[0]}`;
+  const getCustomChallengeKey = () =>
+    `challenge_${new Date().toISOString().split('T')[0]}`;
 
   const handleReset = async () => {
     await AsyncStorage.clear();
@@ -74,12 +107,12 @@ export default function App() {
     setTreeLevel(1);
     setStreak(0);
     setShuffleLeft(5);
+    setUnlockedBadges([]);
     setTodayChallenge(getTodayChallenge());
   };
 
   useEffect(() => {
     loadData();
-    // 🔔 নোটিফিকেশন পারমিশন ও ডেলি রিমাইন্ডার সেটআপ
     initNotifications();
   }, []);
 
@@ -88,7 +121,7 @@ export default function App() {
       await registerForPushNotificationsAsync();
       await scheduleDailyNotification();
     } catch (error) {
-      console.log('Notification initialization error:', error);
+      console.log('Notification error:', error);
     }
   };
 
@@ -101,6 +134,7 @@ export default function App() {
       const savedCustomChallenge = await AsyncStorage.getItem(
         getCustomChallengeKey(),
       );
+      const savedBadges = await AsyncStorage.getItem('unlocked_badges');
 
       const yesterdayStatus = await AsyncStorage.getItem(getYesterdayKey());
 
@@ -110,14 +144,9 @@ export default function App() {
         setTodayChallenge(getTodayChallenge());
       }
 
-      if (savedShuffle !== null) {
-        setShuffleLeft(parseInt(savedShuffle, 10));
-      } else {
-        setShuffleLeft(5);
-      }
+      setShuffleLeft(savedShuffle !== null ? parseInt(savedShuffle, 10) : 5);
 
       let currentStreak = savedStreak ? parseInt(savedStreak, 10) : 0;
-
       if (yesterdayStatus !== 'completed' && savedStatus !== 'completed') {
         currentStreak = 0;
         await AsyncStorage.setItem('streak_count', '0');
@@ -126,6 +155,7 @@ export default function App() {
       setStreak(currentStreak);
       if (savedStatus) setStatus(savedStatus);
       if (savedLevel) setTreeLevel(parseInt(savedLevel, 10));
+      if (savedBadges) setUnlockedBadges(JSON.parse(savedBadges));
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -136,23 +166,20 @@ export default function App() {
   const handleShuffle = async () => {
     if (shuffleLeft <= 0 || status !== 'pending') return;
 
-    const availableChallenges = challengesList.filter(
-      (c) => c !== todayChallenge,
-    );
-    if (availableChallenges.length === 0) return;
+    const available = challengesList.filter((c) => c !== todayChallenge);
+    if (available.length === 0) return;
 
-    const randomIndex = Math.floor(Math.random() * availableChallenges.length);
-    const newChallenge = availableChallenges[randomIndex];
-
-    const updatedShuffleCount = shuffleLeft - 1;
+    const newChallenge =
+      available[Math.floor(Math.random() * available.length)];
+    const updatedShuffle = shuffleLeft - 1;
 
     setTodayChallenge(newChallenge);
-    setShuffleLeft(updatedShuffleCount);
+    setShuffleLeft(updatedShuffle);
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     await AsyncStorage.setItem(getCustomChallengeKey(), newChallenge);
-    await AsyncStorage.setItem(getShuffleKey(), updatedShuffleCount.toString());
+    await AsyncStorage.setItem(getShuffleKey(), updatedShuffle.toString());
   };
 
   const triggerShake = () => {
@@ -214,9 +241,7 @@ export default function App() {
         confettiRef.current.start();
       }
 
-      setTimeout(() => {
-        triggerShake();
-      }, 500);
+      setTimeout(() => triggerShake(), 500);
 
       const newLevel = treeLevel + 1;
       const newStreak = streak + 1;
@@ -228,6 +253,22 @@ export default function App() {
       await AsyncStorage.setItem(getTodayKey(), 'completed');
       await AsyncStorage.setItem('tree_level', newLevel.toString());
       await AsyncStorage.setItem('streak_count', newStreak.toString());
+
+      // 🏅 ব্যাজ আনলক করার লজিক চেক
+      const newlyEarnedBadge = BADGES.find((b) => b.days === newStreak);
+      if (newlyEarnedBadge && !unlockedBadges.includes(newlyEarnedBadge.id)) {
+        const updatedBadgesList = [...unlockedBadges, newlyEarnedBadge.id];
+        setUnlockedBadges(updatedBadgesList);
+        await AsyncStorage.setItem(
+          'unlocked_badges',
+          JSON.stringify(updatedBadgesList),
+        );
+
+        // পপআপ মোডাল দেখানো
+        setTimeout(() => {
+          setEarnedBadgeModal(newlyEarnedBadge);
+        }, 1000);
+      }
     } catch (error) {
       console.error('Error saving complete status:', error);
     }
@@ -238,9 +279,7 @@ export default function App() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Vibration.vibrate([0, 150, 100, 150]);
 
-      setTimeout(() => {
-        triggerShake();
-      }, 500);
+      setTimeout(() => triggerShake(), 500);
 
       setStreak(0);
       setStatus('failed');
@@ -261,7 +300,7 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 justify-between py-12 px-5">
+    <SafeAreaView className="flex-1 bg-slate-50 justify-between py-10 px-5">
       <StatusBar barStyle="dark-content" />
 
       <Animated.View
@@ -272,8 +311,8 @@ export default function App() {
           alignItems: 'center',
         }}
       >
-        {/* Header */}
-        <View className="items-center mt-2">
+        {/* Header Area */}
+        <View className="items-center mt-2 w-full">
           <Text className="text-2xl font-bold color-slate-800">
             🌱 Daily Challenge
           </Text>
@@ -285,9 +324,32 @@ export default function App() {
               🔥 Streak: {streak} {streak === 1 ? 'day' : 'days'}
             </Text>
           </View>
+
+          {/* 🏅 Badges Gallery Bar */}
+          <View className="flex-row justify-around w-full bg-white p-3 rounded-xl mt-3 shadow-sm">
+            {BADGES.map((b) => {
+              const isUnlocked = unlockedBadges.includes(b.id);
+              return (
+                <View key={b.id} className="items-center opacity-100">
+                  <View
+                    className={`w-10 h-10 rounded-full items-center justify-center ${
+                      isUnlocked ? 'bg-amber-100' : 'bg-slate-100'
+                    }`}
+                  >
+                    <Text className="text-lg">
+                      {isUnlocked ? b.icon : '🔒'}
+                    </Text>
+                  </View>
+                  <Text className="text-[10px] font-bold mt-1 color-slate-600">
+                    {b.days}d
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
         </View>
 
-        <Button onPress={handleReset} title="Reset" />
+        <Button onPress={handleReset} title="Reset Progress" />
 
         {/* Challenge Card */}
         <View className="bg-white w-full p-6 rounded-2xl items-center shadow-md shadow-slate-200 elevation-3">
@@ -317,7 +379,7 @@ export default function App() {
         </View>
 
         {/* Animation Area */}
-        <View className="items-center justify-center my-4 h-64 w-64">
+        <View className="items-center justify-center my-2 h-56 w-56">
           {status === 'pending' && (
             <LottieView
               source={plantAnim}
@@ -333,9 +395,9 @@ export default function App() {
                 source={happyAnim}
                 autoPlay
                 loop={false}
-                style={{ width: 200, height: 200 }}
+                style={{ width: 180, height: 180 }}
               />
-              <Text className="text-lg color-emerald-600 font-bold mt-2">
+              <Text className="text-lg color-emerald-600 font-bold my-1 text-center">
                 Great job! Tree Grew Up! 🌳
               </Text>
             </View>
@@ -347,9 +409,9 @@ export default function App() {
                 source={sadAnim}
                 autoPlay
                 loop
-                style={{ width: 180, height: 180 }}
+                style={{ width: 160, height: 160 }}
               />
-              <Text className="text-lg color-rose-500 font-bold mt-2">
+              <Text className="text-lg color-rose-500 font-bold mt-1">
                 Challenge Failed! 😢
               </Text>
             </View>
@@ -381,6 +443,35 @@ export default function App() {
           </View>
         )}
       </Animated.View>
+
+      {/* 🏅 Badge Unlock Celebration Modal */}
+      <Modal
+        visible={earnedBadgeModal !== null}
+        transparent
+        animationType="slide"
+      >
+        <View className="flex-1 justify-center items-center bg-black/60 px-6">
+          <View className="bg-white rounded-3xl p-6 items-center w-full max-w-sm">
+            <Text className="text-6xl mb-2">{earnedBadgeModal?.icon}</Text>
+            <Text className="text-2xl font-extrabold color-emerald-600 mb-1">
+              Badge Unlocked!
+            </Text>
+            <Text className="text-lg font-bold color-slate-800 mb-2">
+              {earnedBadgeModal?.title}
+            </Text>
+            <Text className="text-sm color-slate-500 text-center mb-6">
+              {earnedBadgeModal?.desc}
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => setEarnedBadgeModal(null)}
+              className="bg-emerald-500 py-3 px-8 rounded-full"
+            >
+              <Text className="color-white font-bold text-base">Awesome!</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Confetti Cannon */}
       <ConfettiCannon
