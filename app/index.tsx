@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Audio } from 'expo-av'; // 🔊 expo-av ইমপোর্ট করা হয়েছে
+import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import LottieView from 'lottie-react-native';
 import React, { useEffect, useRef, useState } from 'react';
@@ -11,6 +11,7 @@ import {
   SafeAreaView,
   StatusBar,
   Text,
+  TextInput, // ✍️ TextInput ইমপোর্ট করা হয়েছে
   TouchableOpacity,
   Vibration,
   View,
@@ -88,6 +89,10 @@ export default function App() {
   const [earnedBadgeModal, setEarnedBadgeModal] = useState<Badge | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // ✍️ Custom Challenge States
+  const [showCustomModal, setShowCustomModal] = useState(false);
+  const [customInput, setCustomInput] = useState('');
+
   // 📅 Calendar & History States
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [markedDates, setMarkedDates] = useState<any>({});
@@ -106,7 +111,6 @@ export default function App() {
       const { sound } = await Audio.Sound.createAsync(soundFile);
       await sound.playAsync();
 
-      // সাউন্ড প্লে শেষ হলে মেমোরি খালি করার জন্য
       sound.setOnPlaybackStatusUpdate(async (status) => {
         if (status.isLoaded && status.didJustFinish) {
           await sound.unloadAsync();
@@ -125,7 +129,6 @@ export default function App() {
     return `${year}-${month}-${day}`;
   };
 
-  // 🗓️ বাটনে সুন্দর করে আজকের তারিখ দেখানোর ফাংশন (যেমন: Jul 26)
   const getHeaderDateString = () => {
     return new Date().toLocaleDateString('en-US', {
       month: 'short',
@@ -200,7 +203,6 @@ export default function App() {
       if (savedLevel) setTreeLevel(parseInt(savedLevel, 10));
       if (savedBadges) setUnlockedBadges(JSON.parse(savedBadges));
 
-      // 📅 ক্যালেন্ডার হিস্ট্রি লোড
       await fetchHistoryData();
     } catch (error) {
       console.error('Error loading data:', error);
@@ -209,7 +211,6 @@ export default function App() {
     }
   };
 
-  // 📅 AsyncStorage থেকে আগের স্ট্যাটাস নিয়ে ক্যালেন্ডারে ফরম্যাট করা
   const fetchHistoryData = async () => {
     try {
       const keys = await AsyncStorage.getAllKeys();
@@ -223,13 +224,13 @@ export default function App() {
         if (val === 'completed') {
           newMarkedDates[dateStr] = {
             selected: true,
-            selectedColor: '#10B981', // 🟢 Completed Green
+            selectedColor: '#10B981',
             textColor: '#FFFFFF',
           };
         } else if (val === 'failed') {
           newMarkedDates[dateStr] = {
             selected: true,
-            selectedColor: '#EF4444', // 🔴 Failed Red
+            selectedColor: '#EF4444',
             textColor: '#FFFFFF',
           };
         }
@@ -258,6 +259,19 @@ export default function App() {
 
     await AsyncStorage.setItem(getCustomChallengeKey(), newChallenge);
     await AsyncStorage.setItem(getShuffleKey(), updatedShuffle.toString());
+  };
+
+  // ✍️ নতুন কাস্টম চ্যালেঞ্জ যোগ করার হ্যান্ডলার
+  const handleAddCustomChallenge = async () => {
+    if (!customInput.trim()) return;
+
+    const newChallenge = customInput.trim();
+    setTodayChallenge(newChallenge);
+    await AsyncStorage.setItem(getCustomChallengeKey(), newChallenge);
+
+    setCustomInput('');
+    setShowCustomModal(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const triggerShake = () => {
@@ -312,7 +326,7 @@ export default function App() {
 
   const handleComplete = async () => {
     try {
-      playSound('success'); // 🔊 সাফল্য সাউন্ড
+      playSound('success');
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       Vibration.vibrate(300);
 
@@ -330,10 +344,8 @@ export default function App() {
       await AsyncStorage.setItem('tree_level', newLevel.toString());
       await AsyncStorage.setItem('streak_count', newStreak.toString());
 
-      // 📅 ক্যালেন্ডার হিস্ট্রি আপডেট
       await fetchHistoryData();
 
-      // 🏅 ব্যাজ আনলক লজিক
       const newlyEarnedBadge = BADGES.find((b) => b.days === newStreak);
       if (newlyEarnedBadge && !unlockedBadges.includes(newlyEarnedBadge.id)) {
         const updatedBadgesList = [...unlockedBadges, newlyEarnedBadge.id];
@@ -352,7 +364,7 @@ export default function App() {
 
   const handleFail = async () => {
     try {
-      playSound('fail'); // 🔊 ব্যর্থতার সাউন্ড
+      playSound('fail');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Vibration.vibrate([0, 150, 100, 150]);
 
@@ -364,7 +376,6 @@ export default function App() {
       await AsyncStorage.setItem(getTodayKey(), 'failed');
       await AsyncStorage.setItem('streak_count', '0');
 
-      // 📅 ক্যালেন্ডার হিস্ট্রি আপডেট
       await fetchHistoryData();
     } catch (error) {
       console.error('Error saving fail status:', error);
@@ -400,7 +411,6 @@ export default function App() {
               🌱 Daily Challenge
             </Text>
 
-            {/* 🗓️ Dynamic Date History Button */}
             <TouchableOpacity
               onPress={() => setShowHistoryModal(true)}
               className="bg-emerald-100 px-3 py-1.5 rounded-full flex-row items-center gap-1"
@@ -420,7 +430,7 @@ export default function App() {
             </Text>
           </View>
 
-          {/* 🏅 Badges Gallery Bar */}
+          {/* Badges Gallery Bar */}
           <View className="flex-row justify-around w-full bg-white p-3 rounded-xl mt-3 shadow-sm">
             {BADGES.map((b) => {
               const isUnlocked = unlockedBadges.includes(b.id);
@@ -454,17 +464,30 @@ export default function App() {
             </Text>
 
             {status === 'pending' && (
-              <TouchableOpacity
-                onPress={handleShuffle}
-                disabled={shuffleLeft === 0}
-                className={`px-3 py-1 rounded-full flex-row items-center gap-1 ${
-                  shuffleLeft > 0 ? 'bg-amber-100' : 'bg-slate-100'
-                }`}
-              >
-                <Text className="text-xs font-bold color-amber-700">
-                  🎲 Shuffle ({shuffleLeft})
-                </Text>
-              </TouchableOpacity>
+              <View className="flex-row items-center gap-2">
+                {/* ✍️ Custom Challenge Button */}
+                <TouchableOpacity
+                  onPress={() => setShowCustomModal(true)}
+                  className="bg-blue-100 px-2.5 py-1 rounded-full"
+                >
+                  <Text className="text-xs font-bold color-blue-700">
+                    ✍️ Custom
+                  </Text>
+                </TouchableOpacity>
+
+                {/* 🎲 Shuffle Button */}
+                <TouchableOpacity
+                  onPress={handleShuffle}
+                  disabled={shuffleLeft === 0}
+                  className={`px-2.5 py-1 rounded-full flex-row items-center gap-1 ${
+                    shuffleLeft > 0 ? 'bg-amber-100' : 'bg-slate-100'
+                  }`}
+                >
+                  <Text className="text-xs font-bold color-amber-700">
+                    🎲 ({shuffleLeft})
+                  </Text>
+                </TouchableOpacity>
+              </View>
             )}
           </View>
 
@@ -538,6 +561,50 @@ export default function App() {
           </View>
         )}
       </Animated.View>
+
+      {/* ✍️ Custom Challenge Modal */}
+      <Modal visible={showCustomModal} transparent animationType="fade">
+        <View className="flex-1 justify-center items-center bg-black/60 px-5">
+          <View className="bg-white rounded-3xl p-6 w-full max-w-md">
+            <Text className="text-xl font-bold color-slate-800 text-center mb-1">
+              ✍️ Set Custom Challenge
+            </Text>
+            <Text className="text-xs color-slate-500 text-center mb-4">
+              Write your own challenge for today and set it below.
+            </Text>
+
+            <TextInput
+              value={customInput}
+              onChangeText={setCustomInput}
+              placeholder="e.g. Read 20 mins, Practice Coding..."
+              placeholderTextColor="#94A3B8"
+              className="bg-slate-100 border border-slate-200 rounded-xl p-4 text-base color-slate-800 mb-5"
+              multiline
+              numberOfLines={3}
+            />
+
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                onPress={() => setShowCustomModal(false)}
+                className="flex-1 bg-slate-200 py-3 rounded-xl items-center"
+              >
+                <Text className="color-slate-700 font-bold text-base">
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleAddCustomChallenge}
+                className="flex-1 bg-emerald-500 py-3 rounded-xl items-center"
+              >
+                <Text className="color-white font-bold text-base">
+                  Set Task
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* 📅 Calendar History Modal */}
       <Modal visible={showHistoryModal} transparent animationType="slide">
