@@ -4,11 +4,13 @@ import LottieView from 'lottie-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Button,
   SafeAreaView,
   StatusBar,
   Text,
   TouchableOpacity,
+  Vibration,
   View,
 } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
@@ -25,6 +27,9 @@ export default function App() {
   const [treeLevel, setTreeLevel] = useState(1);
   const [loading, setLoading] = useState(true);
   const confettiRef = useRef<any>(null);
+
+  // Animated Value for Screen Shake
+  const shakeAnimation = useRef(new Animated.Value(0)).current;
 
   const getTodayKey = () => {
     const today = new Date().toISOString().split('T')[0];
@@ -58,16 +63,77 @@ export default function App() {
     }
   };
 
-  // Complete বাটনে চাপ দিলে Haptic + Confetti রান হবে
+  // দ্রুত এবং স্পষ্টভাবে ৪ বার শেক হওয়ার লজিক
+  const triggerShake = () => {
+    Animated.sequence([
+      // Cycle 1
+      Animated.timing(shakeAnimation, {
+        toValue: 20,
+        duration: 30,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: -20,
+        duration: 30,
+        useNativeDriver: true,
+      }),
+      // Cycle 2
+      Animated.timing(shakeAnimation, {
+        toValue: 18,
+        duration: 30,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: -18,
+        duration: 30,
+        useNativeDriver: true,
+      }),
+      // Cycle 3
+      Animated.timing(shakeAnimation, {
+        toValue: 12,
+        duration: 30,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: -12,
+        duration: 30,
+        useNativeDriver: true,
+      }),
+      // Cycle 4
+      Animated.timing(shakeAnimation, {
+        toValue: 6,
+        duration: 30,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: -6,
+        duration: 30,
+        useNativeDriver: true,
+      }),
+      // Reset to Original
+      Animated.timing(shakeAnimation, {
+        toValue: 0,
+        duration: 30,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
   const handleComplete = async () => {
     try {
-      // ১. ভাইব্রেশন / Haptic Effect
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // ১. Haptic & Vibration সাথে সাথে হবে
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      Vibration.vibrate(300);
 
       // ২. কনফেটি ফায়ার
       if (confettiRef.current) {
         confettiRef.current.start();
       }
+
+      // ৩. ঠিক ৫০০ মিলিসেকেন্ড (০.৫ সেকেন্ড) পর শেক অ্যানিমেশন শুরু হবে
+      setTimeout(() => {
+        triggerShake();
+      }, 500);
 
       const newLevel = treeLevel + 1;
       setStatus('completed');
@@ -80,10 +146,15 @@ export default function App() {
     }
   };
 
-  // Failed বাটনে চাপ দিলে হালকা Error Haptic ভাইব্রেশন হবে
   const handleFail = async () => {
     try {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Vibration.vibrate([0, 150, 100, 150]);
+
+      // ৫০০ মিলিসেকেন্ড পর শেক অ্যানিমেশন
+      setTimeout(() => {
+        triggerShake();
+      }, 500);
 
       setStatus('failed');
       await AsyncStorage.setItem(getTodayKey(), 'failed');
@@ -101,97 +172,107 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 items-center justify-between py-12 px-5">
+    <SafeAreaView className="flex-1 bg-slate-50 justify-between py-12 px-5">
       <StatusBar barStyle="dark-content" />
 
-      {/* Header */}
-      <View className="items-center mt-2">
-        <Text className="text-2xl font-bold color-slate-800">
-          🌱 Daily Challenge
-        </Text>
-        <Text className="text-xs font-semibold color-emerald-600 mt-1">
-          Tree Level: {treeLevel}
-        </Text>
-      </View>
-
-      <Button onPress={handleReset} title="Reset" />
-
-      {/* Challenge Card */}
-      <View className="bg-white w-full p-6 rounded-2xl items-center shadow-md shadow-slate-200 elevation-3">
-        <Text className="text-xs font-black color-slate-400 tracking-widest mb-2">
-          TODAY'S TASK
-        </Text>
-        <Text className="text-xl font-semibold color-slate-800 text-center">
-          {todayChallenge}
-        </Text>
-      </View>
-
-      {/* Animation Area */}
-      <View className="items-center justify-center my-4 h-64 w-64">
-        {status === 'pending' && (
-          <LottieView
-            source={plantAnim}
-            autoPlay
-            loop
-            style={{ width: '100%', height: '100%' }}
-          />
-        )}
-
-        {status === 'completed' && (
-          <View className="items-center">
-            <LottieView
-              source={happyAnim}
-              autoPlay
-              loop={false}
-              style={{ width: 200, height: 200 }}
-            />
-            <Text className="text-lg color-emerald-600 font-bold mt-2">
-              Great job! Tree Grew Up! 🌳
-            </Text>
-          </View>
-        )}
-
-        {status === 'failed' && (
-          <View className="items-center">
-            <LottieView
-              source={sadAnim}
-              autoPlay
-              loop
-              style={{ width: 180, height: 180 }}
-            />
-            <Text className="text-lg color-rose-500 font-bold mt-2">
-              Challenge Failed! 😢
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {/* Action Buttons */}
-      {status === 'pending' ? (
-        <View className="flex-row gap-4 w-full">
-          <TouchableOpacity
-            onPress={handleComplete}
-            className="flex-1 bg-emerald-500 py-4 rounded-xl items-center active:opacity-80 shadow-sm"
-          >
-            <Text className="color-white font-bold text-base">Complete</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleFail}
-            className="flex-1 bg-rose-500 py-4 rounded-xl items-center active:opacity-80 shadow-sm"
-          >
-            <Text className="color-white font-bold text-base">Failed</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <View className="w-full bg-slate-200 py-4 rounded-xl items-center">
-          <Text className="color-slate-600 font-semibold text-base text-center">
-            See you tomorrow for a new challenge! ✨
+      {/* Animated.View দিয়ে পুরো কনটেন্টকে Wrap করা হয়েছে যেন ঝাকুনি দেয় */}
+      <Animated.View
+        style={{
+          transform: [{ translateX: shakeAnimation }],
+          flex: 1,
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        {/* Header */}
+        <View className="items-center mt-2">
+          <Text className="text-2xl font-bold color-slate-800">
+            🌱 Daily Challenge
+          </Text>
+          <Text className="text-xs font-semibold color-emerald-600 mt-1">
+            Tree Level: {treeLevel}
           </Text>
         </View>
-      )}
 
-      {/* Confetti Cannon Component */}
+        <Button onPress={handleReset} title="Reset" />
+
+        {/* Challenge Card */}
+        <View className="bg-white w-full p-6 rounded-2xl items-center shadow-md shadow-slate-200 elevation-3">
+          <Text className="text-xs font-black color-slate-400 tracking-widest mb-2">
+            TODAY'S TASK
+          </Text>
+          <Text className="text-xl font-semibold color-slate-800 text-center">
+            {todayChallenge}
+          </Text>
+        </View>
+
+        {/* Animation Area */}
+        <View className="items-center justify-center my-4 h-64 w-64">
+          {status === 'pending' && (
+            <LottieView
+              source={plantAnim}
+              autoPlay
+              loop
+              style={{ width: '100%', height: '100%' }}
+            />
+          )}
+
+          {status === 'completed' && (
+            <View className="items-center">
+              <LottieView
+                source={happyAnim}
+                autoPlay
+                loop={false}
+                style={{ width: 200, height: 200 }}
+              />
+              <Text className="text-lg color-emerald-600 font-bold mt-2">
+                Great job! Tree Grew Up! 🌳
+              </Text>
+            </View>
+          )}
+
+          {status === 'failed' && (
+            <View className="items-center">
+              <LottieView
+                source={sadAnim}
+                autoPlay
+                loop
+                style={{ width: 180, height: 180 }}
+              />
+              <Text className="text-lg color-rose-500 font-bold mt-2">
+                Challenge Failed! 😢
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Action Buttons */}
+        {status === 'pending' ? (
+          <View className="flex-row gap-4 w-full">
+            <TouchableOpacity
+              onPress={handleComplete}
+              className="flex-1 bg-emerald-500 py-4 rounded-xl items-center active:opacity-80 shadow-sm"
+            >
+              <Text className="color-white font-bold text-base">Complete</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleFail}
+              className="flex-1 bg-rose-500 py-4 rounded-xl items-center active:opacity-80 shadow-sm"
+            >
+              <Text className="color-white font-bold text-base">Failed</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View className="w-full bg-slate-200 py-4 rounded-xl items-center">
+            <Text className="color-slate-600 font-semibold text-base text-center">
+              See you tomorrow for a new challenge! ✨
+            </Text>
+          </View>
+        )}
+      </Animated.View>
+
+      {/* Confetti Cannon */}
       <ConfettiCannon
         ref={confettiRef}
         count={150}
