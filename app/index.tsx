@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
+import * as Sharing from 'expo-sharing'; // 📸 expo-sharing ইমপোর্ট করা হয়েছে
 import LottieView from 'lottie-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -18,6 +19,7 @@ import {
 } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import ConfettiCannon from 'react-native-confetti-cannon';
+import { captureRef } from 'react-native-view-shot'; // 📸 view-shot ইমপোর্ট করা হয়েছে
 import {
   getTodayChallenge,
   challenges as importedChallenges,
@@ -90,7 +92,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   // 🌙 Dark Mode State
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   // ✍️ Custom Challenge States
   const [showCustomModal, setShowCustomModal] = useState(false);
@@ -99,6 +101,9 @@ export default function App() {
   // 📅 Calendar & History States
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [markedDates, setMarkedDates] = useState<any>({});
+
+  // 📸 Share Card Ref
+  const cardRef = useRef<View>(null);
 
   const confettiRef = useRef<any>(null);
   const shakeAnimation = useRef(new Animated.Value(0)).current;
@@ -124,7 +129,7 @@ export default function App() {
     }
   };
 
-  // 📅 Local Timezone অনুযায়ী আজকের তারিখ পাওয়ার হেলপার ফাংশন
+  // 📅 Local Timezone অনুযায়ী আজকের তারিখ পাওয়ার হেলপার ফাংশন
   const getFormattedDate = (date: Date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -226,6 +231,30 @@ export default function App() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch (error) {
       console.error('Error saving theme:', error);
+    }
+  };
+
+  // 📸 সোশ্যাল মিডিয়ায় শেয়ার করার হ্যান্ডলার
+  const handleShareProgress = async () => {
+    try {
+      if (!(await Sharing.isAvailableAsync())) {
+        alert('তোমার ডিভাইসে শেয়ার সুবিধাটি উপলভ্য নয়।');
+        return;
+      }
+
+      if (cardRef.current) {
+        const uri = await captureRef(cardRef, {
+          format: 'png',
+          quality: 0.9,
+        });
+
+        await Sharing.shareAsync(uri, {
+          mimeType: 'image/png',
+          dialogTitle: 'Share your progress with friends!',
+        });
+      }
+    } catch (error) {
+      console.error('Error sharing progress:', error);
     }
   };
 
@@ -441,7 +470,6 @@ export default function App() {
             </Text>
 
             <View className="flex-row items-center gap-2">
-              {/* 🌙 Dark Mode Toggle Button */}
               <TouchableOpacity
                 onPress={toggleDarkMode}
                 className={`p-2 rounded-full ${
@@ -451,7 +479,6 @@ export default function App() {
                 <Text className="text-base">{isDarkMode ? '☀️' : '🌙'}</Text>
               </TouchableOpacity>
 
-              {/* 🗓️ History Button */}
               <TouchableOpacity
                 onPress={() => setShowHistoryModal(true)}
                 className={`px-3 py-1.5 rounded-full flex-row items-center gap-1 ${
@@ -522,8 +549,10 @@ export default function App() {
 
         <Button onPress={handleReset} title="Reset Progress" color="#EF4444" />
 
-        {/* Challenge Card */}
+        {/* 📸 Challenge Card (Capturable for Sharing) */}
         <View
+          ref={cardRef}
+          collapsable={false}
           className={`w-full p-6 rounded-2xl items-center shadow-md ${
             isDarkMode
               ? 'bg-slate-800 shadow-none'
@@ -541,7 +570,6 @@ export default function App() {
 
             {status === 'pending' && (
               <View className="flex-row items-center gap-2">
-                {/* ✍️ Custom Challenge Button */}
                 <TouchableOpacity
                   onPress={() => setShowCustomModal(true)}
                   className={`px-2.5 py-1 rounded-full ${
@@ -557,7 +585,6 @@ export default function App() {
                   </Text>
                 </TouchableOpacity>
 
-                {/* 🎲 Shuffle Button */}
                 <TouchableOpacity
                   onPress={handleShuffle}
                   disabled={shuffleLeft === 0}
@@ -590,6 +617,15 @@ export default function App() {
           >
             {todayChallenge}
           </Text>
+
+          {/* 📸 Card Branding when shared */}
+          {status === 'completed' && (
+            <View className="mt-3 bg-emerald-500/10 px-3 py-1 rounded-full flex-row items-center gap-1">
+              <Text className="text-xs font-bold color-emerald-600">
+                ✅ Completed! 🔥 {streak} Days Streak
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Animation Area */}
@@ -658,18 +694,32 @@ export default function App() {
             </TouchableOpacity>
           </View>
         ) : (
-          <View
-            className={`w-full py-4 rounded-xl items-center ${
-              isDarkMode ? 'bg-slate-800' : 'bg-slate-200'
-            }`}
-          >
-            <Text
-              className={`font-semibold text-base text-center ${
-                isDarkMode ? 'color-slate-300' : 'color-slate-600'
+          <View className="w-full gap-3">
+            {/* 📸 Share Progress Button (Only when completed) */}
+            {status === 'completed' && (
+              <TouchableOpacity
+                onPress={handleShareProgress}
+                className="w-full bg-emerald-500 py-3.5 rounded-xl items-center shadow-sm flex-row justify-center gap-2 active:opacity-80"
+              >
+                <Text className="color-white font-bold text-base">
+                  📸 Share Progress
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            <View
+              className={`w-full py-3.5 rounded-xl items-center ${
+                isDarkMode ? 'bg-slate-800' : 'bg-slate-200'
               }`}
             >
-              See you tomorrow for a new challenge! ✨
-            </Text>
+              <Text
+                className={`font-semibold text-sm text-center ${
+                  isDarkMode ? 'color-slate-300' : 'color-slate-600'
+                }`}
+              >
+                See you tomorrow for a new challenge! ✨
+              </Text>
+            </View>
           </View>
         )}
       </Animated.View>
