@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Audio } from 'expo-av'; // 🔊 expo-av ইমপোর্ট করা হয়েছে
 import * as Haptics from 'expo-haptics';
 import LottieView from 'lottie-react-native';
 import React, { useEffect, useRef, useState } from 'react';
@@ -94,7 +95,29 @@ export default function App() {
   const confettiRef = useRef<any>(null);
   const shakeAnimation = useRef(new Animated.Value(0)).current;
 
-  // 📅 Local Timezone অনুযায়ী আজকের তারিখ পাওয়ার হেলপার ফাংশন
+  // 🔊 সাউন্ড প্লে করার হেলপার ফাংশন
+  const playSound = async (type: 'success' | 'fail') => {
+    try {
+      const soundFile =
+        type === 'success'
+          ? require('../assets/sounds/success.mp3')
+          : require('../assets/sounds/fail.mp3');
+
+      const { sound } = await Audio.Sound.createAsync(soundFile);
+      await sound.playAsync();
+
+      // সাউন্ড প্লে শেষ হলে মেমোরি খালি করার জন্য
+      sound.setOnPlaybackStatusUpdate(async (status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          await sound.unloadAsync();
+        }
+      });
+    } catch (error) {
+      console.error('সাউন্ড প্লে করতে সমস্যা হয়েছে:', error);
+    }
+  };
+
+  // 📅 Local Timezone অনুযায়ী আজকের তারিখ পাওয়ার হেলপার ফাংশন
   const getFormattedDate = (date: Date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -186,7 +209,7 @@ export default function App() {
     }
   };
 
-  // 📅 AsyncStorage থেকে আগের স্ট্যাটাস নিয়ে ক্যালেন্ডারে ফরম্যাট করা
+  // 📅 AsyncStorage থেকে আগের স্ট্যাটাস নিয়ে ক্যালেন্ডারে ফরম্যাট করা
   const fetchHistoryData = async () => {
     try {
       const keys = await AsyncStorage.getAllKeys();
@@ -289,6 +312,7 @@ export default function App() {
 
   const handleComplete = async () => {
     try {
+      playSound('success'); // 🔊 সাফল্য সাউন্ড
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       Vibration.vibrate(300);
 
@@ -328,6 +352,7 @@ export default function App() {
 
   const handleFail = async () => {
     try {
+      playSound('fail'); // 🔊 ব্যর্থতার সাউন্ড
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Vibration.vibrate([0, 150, 100, 150]);
 
