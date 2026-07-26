@@ -11,7 +11,7 @@ import {
   SafeAreaView,
   StatusBar,
   Text,
-  TextInput, // ✍️ TextInput ইমপোর্ট করা হয়েছে
+  TextInput,
   TouchableOpacity,
   Vibration,
   View,
@@ -89,6 +89,9 @@ export default function App() {
   const [earnedBadgeModal, setEarnedBadgeModal] = useState<Badge | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // 🌙 Dark Mode State
+  const [isDarkMode, setIsDarkMode] = useState(true);
+
   // ✍️ Custom Challenge States
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [customInput, setCustomInput] = useState('');
@@ -154,6 +157,7 @@ export default function App() {
     setShuffleLeft(5);
     setUnlockedBadges([]);
     setMarkedDates({});
+    setIsDarkMode(false);
     setTodayChallenge(getTodayChallenge());
   };
 
@@ -181,6 +185,7 @@ export default function App() {
         getCustomChallengeKey(),
       );
       const savedBadges = await AsyncStorage.getItem('unlocked_badges');
+      const savedTheme = await AsyncStorage.getItem('theme_dark_mode');
 
       const yesterdayStatus = await AsyncStorage.getItem(getYesterdayKey());
 
@@ -202,12 +207,25 @@ export default function App() {
       if (savedStatus) setStatus(savedStatus);
       if (savedLevel) setTreeLevel(parseInt(savedLevel, 10));
       if (savedBadges) setUnlockedBadges(JSON.parse(savedBadges));
+      if (savedTheme !== null) setIsDarkMode(JSON.parse(savedTheme));
 
       await fetchHistoryData();
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 🌙 ডার্ক মোড টগল হ্যান্ডলার
+  const toggleDarkMode = async () => {
+    try {
+      const nextMode = !isDarkMode;
+      setIsDarkMode(nextMode);
+      await AsyncStorage.setItem('theme_dark_mode', JSON.stringify(nextMode));
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (error) {
+      console.error('Error saving theme:', error);
     }
   };
 
@@ -261,7 +279,6 @@ export default function App() {
     await AsyncStorage.setItem(getShuffleKey(), updatedShuffle.toString());
   };
 
-  // ✍️ নতুন কাস্টম চ্যালেঞ্জ যোগ করার হ্যান্ডলার
   const handleAddCustomChallenge = async () => {
     if (!customInput.trim()) return;
 
@@ -384,7 +401,11 @@ export default function App() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 items-center justify-center">
+      <SafeAreaView
+        className={`flex-1 items-center justify-center ${
+          isDarkMode ? 'bg-slate-900' : 'bg-slate-50'
+        }`}
+      >
         <ActivityIndicator size="large" color="#10B981" />
       </SafeAreaView>
     );
@@ -393,8 +414,12 @@ export default function App() {
   const todayStr = getFormattedDate(new Date());
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 justify-between py-10 px-5">
-      <StatusBar barStyle="dark-content" />
+    <SafeAreaView
+      className={`flex-1 justify-between py-10 px-5 ${
+        isDarkMode ? 'bg-slate-900' : 'bg-slate-50'
+      }`}
+    >
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
       <Animated.View
         style={{
@@ -407,22 +432,49 @@ export default function App() {
         {/* Header Area */}
         <View className="items-center mt-2 w-full">
           <View className="flex-row justify-between items-center w-full px-2">
-            <Text className="text-xl font-bold color-slate-800">
+            <Text
+              className={`text-xl font-bold ${
+                isDarkMode ? 'color-slate-100' : 'color-slate-800'
+              }`}
+            >
               🌱 Daily Challenge
             </Text>
 
-            <TouchableOpacity
-              onPress={() => setShowHistoryModal(true)}
-              className="bg-emerald-100 px-3 py-1.5 rounded-full flex-row items-center gap-1"
-            >
-              <Text className="text-xs font-bold color-emerald-700">
-                🗓️ {getHeaderDateString()} | History
-              </Text>
-            </TouchableOpacity>
+            <View className="flex-row items-center gap-2">
+              {/* 🌙 Dark Mode Toggle Button */}
+              <TouchableOpacity
+                onPress={toggleDarkMode}
+                className={`p-2 rounded-full ${
+                  isDarkMode ? 'bg-slate-800' : 'bg-slate-200'
+                }`}
+              >
+                <Text className="text-base">{isDarkMode ? '☀️' : '🌙'}</Text>
+              </TouchableOpacity>
+
+              {/* 🗓️ History Button */}
+              <TouchableOpacity
+                onPress={() => setShowHistoryModal(true)}
+                className={`px-3 py-1.5 rounded-full flex-row items-center gap-1 ${
+                  isDarkMode ? 'bg-emerald-950' : 'bg-emerald-100'
+                }`}
+              >
+                <Text
+                  className={`text-xs font-bold ${
+                    isDarkMode ? 'color-emerald-400' : 'color-emerald-700'
+                  }`}
+                >
+                  🗓️ {getHeaderDateString()}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View className="flex-row items-center gap-3 mt-1">
-            <Text className="text-xs font-semibold color-emerald-600">
+            <Text
+              className={`text-xs font-semibold ${
+                isDarkMode ? 'color-emerald-400' : 'color-emerald-600'
+              }`}
+            >
               Tree Level: {treeLevel}
             </Text>
             <Text className="text-xs font-bold color-orange-500">
@@ -431,21 +483,35 @@ export default function App() {
           </View>
 
           {/* Badges Gallery Bar */}
-          <View className="flex-row justify-around w-full bg-white p-3 rounded-xl mt-3 shadow-sm">
+          <View
+            className={`flex-row justify-around w-full p-3 rounded-xl mt-3 shadow-sm ${
+              isDarkMode ? 'bg-slate-800' : 'bg-white'
+            }`}
+          >
             {BADGES.map((b) => {
               const isUnlocked = unlockedBadges.includes(b.id);
               return (
                 <View key={b.id} className="items-center">
                   <View
                     className={`w-10 h-10 rounded-full items-center justify-center ${
-                      isUnlocked ? 'bg-amber-100' : 'bg-slate-100'
+                      isUnlocked
+                        ? isDarkMode
+                          ? 'bg-amber-900/50'
+                          : 'bg-amber-100'
+                        : isDarkMode
+                          ? 'bg-slate-700'
+                          : 'bg-slate-100'
                     }`}
                   >
                     <Text className="text-lg">
                       {isUnlocked ? b.icon : '🔒'}
                     </Text>
                   </View>
-                  <Text className="text-[10px] font-bold mt-1 color-slate-600">
+                  <Text
+                    className={`text-[10px] font-bold mt-1 ${
+                      isDarkMode ? 'color-slate-400' : 'color-slate-600'
+                    }`}
+                  >
                     {b.days}d
                   </Text>
                 </View>
@@ -454,12 +520,22 @@ export default function App() {
           </View>
         </View>
 
-        <Button onPress={handleReset} title="Reset Progress" />
+        <Button onPress={handleReset} title="Reset Progress" color="#EF4444" />
 
         {/* Challenge Card */}
-        <View className="bg-white w-full p-6 rounded-2xl items-center shadow-md shadow-slate-200 elevation-3">
+        <View
+          className={`w-full p-6 rounded-2xl items-center shadow-md ${
+            isDarkMode
+              ? 'bg-slate-800 shadow-none'
+              : 'bg-white shadow-slate-200 elevation-3'
+          }`}
+        >
           <View className="flex-row justify-between items-center w-full mb-3">
-            <Text className="text-xs font-black color-slate-400 tracking-widest">
+            <Text
+              className={`text-xs font-black tracking-widest ${
+                isDarkMode ? 'color-slate-400' : 'color-slate-400'
+              }`}
+            >
               TODAY'S TASK
             </Text>
 
@@ -468,9 +544,15 @@ export default function App() {
                 {/* ✍️ Custom Challenge Button */}
                 <TouchableOpacity
                   onPress={() => setShowCustomModal(true)}
-                  className="bg-blue-100 px-2.5 py-1 rounded-full"
+                  className={`px-2.5 py-1 rounded-full ${
+                    isDarkMode ? 'bg-blue-950' : 'bg-blue-100'
+                  }`}
                 >
-                  <Text className="text-xs font-bold color-blue-700">
+                  <Text
+                    className={`text-xs font-bold ${
+                      isDarkMode ? 'color-blue-400' : 'color-blue-700'
+                    }`}
+                  >
                     ✍️ Custom
                   </Text>
                 </TouchableOpacity>
@@ -480,10 +562,20 @@ export default function App() {
                   onPress={handleShuffle}
                   disabled={shuffleLeft === 0}
                   className={`px-2.5 py-1 rounded-full flex-row items-center gap-1 ${
-                    shuffleLeft > 0 ? 'bg-amber-100' : 'bg-slate-100'
+                    shuffleLeft > 0
+                      ? isDarkMode
+                        ? 'bg-amber-950'
+                        : 'bg-amber-100'
+                      : isDarkMode
+                        ? 'bg-slate-700'
+                        : 'bg-slate-100'
                   }`}
                 >
-                  <Text className="text-xs font-bold color-amber-700">
+                  <Text
+                    className={`text-xs font-bold ${
+                      isDarkMode ? 'color-amber-400' : 'color-amber-700'
+                    }`}
+                  >
                     🎲 ({shuffleLeft})
                   </Text>
                 </TouchableOpacity>
@@ -491,7 +583,11 @@ export default function App() {
             )}
           </View>
 
-          <Text className="text-xl font-semibold color-slate-800 text-center my-2">
+          <Text
+            className={`text-xl font-semibold text-center my-2 ${
+              isDarkMode ? 'color-slate-100' : 'color-slate-800'
+            }`}
+          >
             {todayChallenge}
           </Text>
         </View>
@@ -515,7 +611,11 @@ export default function App() {
                 loop={false}
                 style={{ width: 180, height: 180 }}
               />
-              <Text className="text-lg color-emerald-600 font-bold mt-1">
+              <Text
+                className={`text-lg font-bold mt-1 ${
+                  isDarkMode ? 'color-emerald-400' : 'color-emerald-600'
+                }`}
+              >
                 Great job! Tree Grew Up! 🌳
               </Text>
             </View>
@@ -529,7 +629,11 @@ export default function App() {
                 loop
                 style={{ width: 160, height: 160 }}
               />
-              <Text className="text-lg color-rose-500 font-bold mt-1">
+              <Text
+                className={`text-lg font-bold mt-1 ${
+                  isDarkMode ? 'color-rose-400' : 'color-rose-500'
+                }`}
+              >
                 Challenge Failed! 😢
               </Text>
             </View>
@@ -554,8 +658,16 @@ export default function App() {
             </TouchableOpacity>
           </View>
         ) : (
-          <View className="w-full bg-slate-200 py-4 rounded-xl items-center">
-            <Text className="color-slate-600 font-semibold text-base text-center">
+          <View
+            className={`w-full py-4 rounded-xl items-center ${
+              isDarkMode ? 'bg-slate-800' : 'bg-slate-200'
+            }`}
+          >
+            <Text
+              className={`font-semibold text-base text-center ${
+                isDarkMode ? 'color-slate-300' : 'color-slate-600'
+              }`}
+            >
               See you tomorrow for a new challenge! ✨
             </Text>
           </View>
@@ -564,21 +676,37 @@ export default function App() {
 
       {/* ✍️ Custom Challenge Modal */}
       <Modal visible={showCustomModal} transparent animationType="fade">
-        <View className="flex-1 justify-center items-center bg-black/60 px-5">
-          <View className="bg-white rounded-3xl p-6 w-full max-w-md">
-            <Text className="text-xl font-bold color-slate-800 text-center mb-1">
+        <View className="flex-1 justify-center items-center bg-black/70 px-5">
+          <View
+            className={`rounded-3xl p-6 w-full max-w-md ${
+              isDarkMode ? 'bg-slate-800' : 'bg-white'
+            }`}
+          >
+            <Text
+              className={`text-xl font-bold text-center mb-1 ${
+                isDarkMode ? 'color-slate-100' : 'color-slate-800'
+              }`}
+            >
               ✍️ Set Custom Challenge
             </Text>
-            <Text className="text-xs color-slate-500 text-center mb-4">
-              Write your own challenge for today and set it below.
+            <Text
+              className={`text-xs text-center mb-4 ${
+                isDarkMode ? 'color-slate-400' : 'color-slate-500'
+              }`}
+            >
+              তোমার আজকের নিজের পছন্দমতো চ্যালেঞ্জ লিখে নিচে সেট করো
             </Text>
 
             <TextInput
               value={customInput}
               onChangeText={setCustomInput}
               placeholder="e.g. Read 20 mins, Practice Coding..."
-              placeholderTextColor="#94A3B8"
-              className="bg-slate-100 border border-slate-200 rounded-xl p-4 text-base color-slate-800 mb-5"
+              placeholderTextColor={isDarkMode ? '#64748B' : '#94A3B8'}
+              className={`border rounded-xl p-4 text-base mb-5 ${
+                isDarkMode
+                  ? 'bg-slate-700 color-slate-100 border-slate-600'
+                  : 'bg-slate-100 color-slate-800 border-slate-200'
+              }`}
               multiline
               numberOfLines={3}
             />
@@ -586,9 +714,15 @@ export default function App() {
             <View className="flex-row gap-3">
               <TouchableOpacity
                 onPress={() => setShowCustomModal(false)}
-                className="flex-1 bg-slate-200 py-3 rounded-xl items-center"
+                className={`flex-1 py-3 rounded-xl items-center ${
+                  isDarkMode ? 'bg-slate-700' : 'bg-slate-200'
+                }`}
               >
-                <Text className="color-slate-700 font-bold text-base">
+                <Text
+                  className={`font-bold text-base ${
+                    isDarkMode ? 'color-slate-200' : 'color-slate-700'
+                  }`}
+                >
                   Cancel
                 </Text>
               </TouchableOpacity>
@@ -608,14 +742,22 @@ export default function App() {
 
       {/* 📅 Calendar History Modal */}
       <Modal visible={showHistoryModal} transparent animationType="slide">
-        <View className="flex-1 justify-center items-center bg-black/60 px-5">
-          <View className="bg-white rounded-3xl p-5 w-full max-w-md">
-            <Text className="text-xl font-bold color-slate-800 text-center mb-4">
+        <View className="flex-1 justify-center items-center bg-black/70 px-5">
+          <View
+            className={`rounded-3xl p-5 w-full max-w-md ${
+              isDarkMode ? 'bg-slate-800' : 'bg-white'
+            }`}
+          >
+            <Text
+              className={`text-xl font-bold text-center mb-4 ${
+                isDarkMode ? 'color-slate-100' : 'color-slate-800'
+              }`}
+            >
               📅 Challenge History
             </Text>
 
             <Calendar
-              key={todayStr}
+              key={`${todayStr}_${isDarkMode}`}
               current={todayStr}
               markedDates={{
                 ...markedDates,
@@ -625,12 +767,16 @@ export default function App() {
                       [todayStr]: {
                         today: true,
                         selected: true,
-                        selectedColor: '#E2E8F0',
-                        textColor: '#0F172A',
+                        selectedColor: isDarkMode ? '#334155' : '#E2E8F0',
+                        textColor: isDarkMode ? '#F8FAFC' : '#0F172A',
                       },
                     }),
               }}
               theme={{
+                calendarBackground: isDarkMode ? '#1E293B' : '#FFFFFF',
+                textSectionTitleColor: isDarkMode ? '#CBD5E1' : '#B6C1CD',
+                dayTextColor: isDarkMode ? '#F8FAFC' : '#2D4150',
+                monthTextColor: isDarkMode ? '#F8FAFC' : '#162B4D',
                 todayTextColor: '#10B981',
                 arrowColor: '#10B981',
                 indicatorColor: '#10B981',
@@ -642,13 +788,21 @@ export default function App() {
             <View className="flex-row justify-center gap-6 mt-4">
               <View className="flex-row items-center gap-2">
                 <View className="w-3 h-3 rounded-full bg-emerald-500" />
-                <Text className="text-xs color-slate-600 font-semibold">
+                <Text
+                  className={`text-xs font-semibold ${
+                    isDarkMode ? 'color-slate-300' : 'color-slate-600'
+                  }`}
+                >
                   Completed
                 </Text>
               </View>
               <View className="flex-row items-center gap-2">
                 <View className="w-3 h-3 rounded-full bg-rose-500" />
-                <Text className="text-xs color-slate-600 font-semibold">
+                <Text
+                  className={`text-xs font-semibold ${
+                    isDarkMode ? 'color-slate-300' : 'color-slate-600'
+                  }`}
+                >
                   Failed
                 </Text>
               </View>
@@ -656,7 +810,9 @@ export default function App() {
 
             <TouchableOpacity
               onPress={() => setShowHistoryModal(false)}
-              className="bg-slate-800 py-3 rounded-xl items-center mt-5"
+              className={`py-3 rounded-xl items-center mt-5 ${
+                isDarkMode ? 'bg-slate-700' : 'bg-slate-800'
+              }`}
             >
               <Text className="color-white font-bold text-base">Close</Text>
             </TouchableOpacity>
@@ -670,16 +826,28 @@ export default function App() {
         transparent
         animationType="slide"
       >
-        <View className="flex-1 justify-center items-center bg-black/60 px-6">
-          <View className="bg-white rounded-3xl p-6 items-center w-full max-w-sm">
+        <View className="flex-1 justify-center items-center bg-black/70 px-6">
+          <View
+            className={`rounded-3xl p-6 items-center w-full max-w-sm ${
+              isDarkMode ? 'bg-slate-800' : 'bg-white'
+            }`}
+          >
             <Text className="text-6xl mb-2">{earnedBadgeModal?.icon}</Text>
-            <Text className="text-2xl font-extrabold color-emerald-600 mb-1">
+            <Text className="text-2xl font-extrabold color-emerald-500 mb-1">
               Badge Unlocked!
             </Text>
-            <Text className="text-lg font-bold color-slate-800 mb-2">
+            <Text
+              className={`text-lg font-bold mb-2 ${
+                isDarkMode ? 'color-slate-100' : 'color-slate-800'
+              }`}
+            >
               {earnedBadgeModal?.title}
             </Text>
-            <Text className="text-sm color-slate-500 text-center mb-6">
+            <Text
+              className={`text-sm text-center mb-6 ${
+                isDarkMode ? 'color-slate-400' : 'color-slate-500'
+              }`}
+            >
               {earnedBadgeModal?.desc}
             </Text>
 
