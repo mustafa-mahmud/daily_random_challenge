@@ -6,7 +6,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
-  Button,
   Modal,
   SafeAreaView,
   StatusBar,
@@ -106,18 +105,6 @@ export default function App() {
 
   const confettiRef = useRef<any>(null);
   const shakeAnimation = useRef(new Animated.Value(0)).current;
-
-  const handleReset = async () => {
-    await AsyncStorage.clear();
-    setStatus('pending');
-    setTreeLevel(1);
-    setStreak(0);
-    setShuffleLeft(5);
-    setUnlockedBadges([]);
-    setMarkedDates({});
-    setIsDarkMode(true); // 🌙 Default to dark mode on reset
-    setTodayChallenge(getTodayChallenge());
-  };
 
   // 📅 Local Timezone অনুযায়ী আজকের তারিখ পাওয়ার হেলপার ফাংশন
   const getFormattedDate = (date: Date) => {
@@ -526,8 +513,6 @@ export default function App() {
             })}
           </View>
         </View>
-
-        <Button onPress={handleReset} title="Reset Progress" color="#EF4444" />
 
         {/* 📸 Challenge Card (Capturable for Sharing) */}
         <View
