@@ -1,7 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
-import * as Sharing from 'expo-sharing'; // 📸 expo-sharing ইমপোর্ট করা হয়েছে
+import * as Sharing from 'expo-sharing';
 import LottieView from 'lottie-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -19,7 +18,7 @@ import {
 } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import ConfettiCannon from 'react-native-confetti-cannon';
-import { captureRef } from 'react-native-view-shot'; // 📸 view-shot ইমপোর্ট করা হয়েছে
+import { captureRef } from 'react-native-view-shot';
 import {
   getTodayChallenge,
   challenges as importedChallenges,
@@ -91,7 +90,7 @@ export default function App() {
   const [earnedBadgeModal, setEarnedBadgeModal] = useState<Badge | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 🌙 Dark Mode State
+  // 🌙 Dark Mode State (Default True)
   const [isDarkMode, setIsDarkMode] = useState(true);
 
   // ✍️ Custom Challenge States
@@ -116,28 +115,8 @@ export default function App() {
     setShuffleLeft(5);
     setUnlockedBadges([]);
     setMarkedDates({});
+    setIsDarkMode(true); // 🌙 Default to dark mode on reset
     setTodayChallenge(getTodayChallenge());
-  };
-
-  // 🔊 সাউন্ড প্লে করার হেলপার ফাংশন
-  const playSound = async (type: 'success' | 'fail') => {
-    try {
-      const soundFile =
-        type === 'success'
-          ? require('../assets/sounds/success.mp3')
-          : require('../assets/sounds/fail.mp3');
-
-      const { sound } = await Audio.Sound.createAsync(soundFile);
-      await sound.playAsync();
-
-      sound.setOnPlaybackStatusUpdate(async (status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          await sound.unloadAsync();
-        }
-      });
-    } catch (error) {
-      console.error('সাউন্ড প্লে করতে সমস্যা হয়েছে:', error);
-    }
   };
 
   // 📅 Local Timezone অনুযায়ী আজকের তারিখ পাওয়ার হেলপার ফাংশন
@@ -211,7 +190,11 @@ export default function App() {
       if (savedStatus) setStatus(savedStatus);
       if (savedLevel) setTreeLevel(parseInt(savedLevel, 10));
       if (savedBadges) setUnlockedBadges(JSON.parse(savedBadges));
-      if (savedTheme !== null) setIsDarkMode(JSON.parse(savedTheme));
+      if (savedTheme !== null) {
+        setIsDarkMode(JSON.parse(savedTheme));
+      } else {
+        setIsDarkMode(true); // 🌙 Default dark mode if no saved preference
+      }
 
       await fetchHistoryData();
     } catch (error) {
@@ -371,7 +354,6 @@ export default function App() {
 
   const handleComplete = async () => {
     try {
-      playSound('success');
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       Vibration.vibrate(300);
 
@@ -409,7 +391,6 @@ export default function App() {
 
   const handleFail = async () => {
     try {
-      playSound('fail');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Vibration.vibrate([0, 150, 100, 150]);
 
